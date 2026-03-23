@@ -1,0 +1,20 @@
+<h2>Prosti termini</h2>
+
+{% for t in terms %}
+<form method="POST" action="/reserve/{{t[0]}}">
+    <b>{{t[1]}} {{t[2]}}</b><br>
+
+    Izberi stil:
+    <select name="hairstyle">
+        <option>Fade</option>
+        <option>Buzz cut</option>
+        <option>Taper</option>
+        <option>Beard</option>
+    </select>
+
+    <button>Rezerviraj</button>
+</form>
+<hr>
+{% endfor %}
+
+<a href="/">Nazaj</a>

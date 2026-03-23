@@ -1,0 +1,25 @@
+<h2>Admin panel</h2>
+
+<h3>Dodaj termin</h3>
+<form method="POST" action="/add-term">
+    Datum: <input name="date"><br>
+    Ura: <input name="time"><br>
+    <button>Dodaj</button>
+</form>
+
+<hr>
+
+<h3>Vsi termini</h3>
+
+{% for t in terms %}
+<p>
+    {{t[1]}} {{t[2]}} |
+    Status: {{t[4]}} |
+    Stil: {{t[3]}} |
+    Uporabnik: {{t[5]}}
+    
+    <a href="/delete-term/{{t[0]}}">❌ Izbriši</a>
+</p>
+{% endfor %}
+
+<a href="/">Nazaj</a>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budi Blendz</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">Budi Blendz 💈</div>
+
+        <div class="nav-links">
+            <a href="/">Domov</a>
+            <a href="/galerija">Galerija</a>
+            <a href="/trgovina">Trgovina</a>
+            <a href="/kontakt">Kontakt</a>
+            <a href="/booking">Rezervacija</a>
+
+            {% if session.get("user") %}
+                <a href="/logout">Odjava</a>
+            {% else %}
+                <a href="/login">Prijava</a>
+                <a href="/register">Registracija</a>
+            {% endif %}
+
+            {% if session.get("role") == "admin" %}
+                <a href="/admin" class="admin-link">Admin</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>© 2026 Budi Blendz</p>
+    </footer>
+</body>
+</html>

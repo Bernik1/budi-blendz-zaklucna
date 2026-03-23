@@ -1,20 +1,94 @@
-<h2>Prosti termini</h2>
+{% extends "base.html" %}
 
-{% for t in terms %}
-<form method="POST" action="/reserve/{{t[0]}}">
-    <b>{{t[1]}} {{t[2]}}</b><br>
+{% block content %}
+<section class="booking-wrapper">
+    <div class="booking-steps">
+        <div class="step current">Izberi termin</div>
+    </div>
 
-    Izberi stil:
-    <select name="hairstyle">
-        <option>Fade</option>
-        <option>Buzz cut</option>
-        <option>Taper</option>
-        <option>Beard</option>
-    </select>
+    <div class="days-strip">
+        {% for dan in dnevi %}
+            {% set datum_deli = dan.datum.split('-') %}
+            <button
+                class="day-card {% if loop.first %}selected{% endif %}"
+                type="button"
+                onclick="prikaziDan('dan-{{ loop.index }}', this)"
+            >
+                <span class="day-name">{{ dan.ime_dneva }}</span>
+                <span class="day-number">{{ datum_deli[2] }}</span>
+                <span class="day-month">{{ datum_deli[1] }} / {{ datum_deli[0] }}</span>
+                <span class="day-price">10,00 €</span>
+            </button>
+        {% endfor %}
+    </div>
 
-    <button>Rezerviraj</button>
-</form>
-<hr>
-{% endfor %}
+    <div class="booking-title">
+        <h2>IZBERI TERMIN</h2>
+    </div>
 
-<a href="/">Nazaj</a>
+    {% for dan in dnevi %}
+    <section
+        class="day-section {% if loop.first %}active-day{% else %}hidden-day{% endif %}"
+        id="dan-{{ loop.index }}"
+    >
+        <h3>{{ dan.ime_dneva }}, {{ dan.datum }}</h3>
+
+        <div class="compact-time-list">
+            {% set prosti = dan.termini | selectattr("status", "equalto", "free") | list %}
+            {% set zasedeni = dan.termini | selectattr("status", "equalto", "reserved") | list %}
+
+            {% if prosti %}
+                {% for t in prosti %}
+                <div class="compact-time-card">
+                    <div class="compact-time-top">
+                        <span class="compact-hour">{{ t.time }}</span>
+                        <span class="compact-price">18,00 €</span>
+                    </div>
+
+                    <form method="POST" action="/reserve/{{ t.id }}" class="compact-form">
+                        <select name="hairstyle" required>
+                            <option value="">Izberi stil</option>
+                            <option>Fade</option>
+                            <option>Buzz Cut</option>
+                            <option>Taper</option>
+                            <option>Beard Styling</option>
+                        </select>
+                        <button type="submit" class="btn small-btn">Rezerviraj</button>
+                    </form>
+                </div>
+                {% endfor %}
+
+            {% elif zasedeni %}
+                <div class="day-status-box zasedeno">
+                    <h3>ZASEDENO</h3>
+                    <p>Vsi termini za ta dan so že rezervirani</p>
+                </div>
+
+            {% else %}
+                <div class="day-status-box zaprto">
+                    <h3>ZAPRTO</h3>
+                    <p>Ta dan ni odprt</p>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+    {% endfor %}
+</section>
+
+<script>
+function prikaziDan(id, element) {
+    const vsiDnevi = document.querySelectorAll(".day-section");
+    vsiDnevi.forEach(dan => {
+        dan.classList.add("hidden-day");
+    });
+
+    const vseKartice = document.querySelectorAll(".day-card");
+    vseKartice.forEach(kartica => {
+        kartica.classList.remove("selected");
+    });
+
+    document.getElementById(id).classList.remove("hidden-day");
+    element.classList.add("selected");
+}
+</script>
+{% endblock %}

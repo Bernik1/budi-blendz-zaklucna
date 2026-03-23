@@ -1,10 +1,19 @@
-<h2>Registracija</h2>
+{% extends "base.html" %}
 
-<form method="POST">
-    Ime: <input name="name"><br>
-    Email: <input name="email"><br>
-    Geslo: <input type="password" name="password"><br>
-    <button>Registracija</button>
-</form>
+{% block content %}
+<div class="card">
+    <h2>Registracija</h2>
+    <form method="POST">
+        <label>Ime</label>
+        <input name="name" required>
 
-<a href="/login">Že imaš račun?</a>
+        <label>Email</label>
+        <input name="email" type="email" required>
+
+        <label>Geslo</label>
+        <input name="password" type="password" required>
+
+        <button type="submit" class="btn">Registracija</button>
+    </form>
+</div>
+{% endblock %}

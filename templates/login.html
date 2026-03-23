@@ -1,9 +1,16 @@
-<h2>Prijava</h2>
+{% extends "base.html" %}
 
-<form method="POST">
-    Email: <input name="email"><br>
-    Geslo: <input type="password" name="password"><br>
-    <button>Prijava</button>
-</form>
+{% block content %}
+<div class="card">
+    <h2>Prijava</h2>
+    <form method="POST">
+        <label>Email</label>
+        <input name="email" type="email" required>
 
-<a href="/register">Nimaš računa?</a>
+        <label>Geslo</label>
+        <input name="password" type="password" required>
+
+        <button type="submit" class="btn">Prijava</button>
+    </form>
+</div>
+{% endblock %}

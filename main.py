@@ -169,6 +169,18 @@ def delete_term(id):
     db.close()
 
     return redirect("/admin")
+@app.route("/make-admin")
+def make_admin():
+    db = get_db()
+    cursor = db.cursor()
+
+    # spremeni email na svojega
+    cursor.execute("UPDATE users SET role='admin' WHERE email='zak.bernik07@gmail.com'")
+
+    db.commit()
+    db.close()
+
+    return "Zdaj si admin"
 
 # ------------------ RUN ------------------
 if __name__ == "__main__":

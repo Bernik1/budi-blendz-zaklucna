@@ -1,11 +1,25 @@
 from flask import Flask, render_template, request, redirect, session, flash
+from flask_mail import Mail, Message
 import sqlite3
+import os
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = "zamenjaj_to_z_mocnejsim_kljucem"
 
+# ------------------ MAIL CONFIG ------------------
+app.config["MAIL_SERVER"] = "smtp.gmail.com"
+app.config["MAIL_PORT"] = 587
+app.config["MAIL_USE_TLS"] = True
+app.config["MAIL_USERNAME"] = "zak.bernik07@gmail.com"
+app.config["MAIL_PASSWORD"] = "aqjguvgabjftfcxf"
+app.config["MAIL_DEFAULT_SENDER"] = "zak.bernik07@gmail.com"
+
+mail = Mail(app)
+ADMIN_EMAIL = "zak.bernik07@gmail.com"
+
+# ------------------ DNEVI ------------------
 DNEVI = {
     0: "Ponedeljek",
     1: "Torek",
@@ -16,7 +30,7 @@ DNEVI = {
     6: "Nedelja"
 }
 
-
+# ------------------ DATABASE ------------------
 def get_db():
     conn = sqlite3.connect("database.db")
     conn.row_factory = sqlite3.Row
@@ -33,6 +47,7 @@ def init_db():
         name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
+        phone TEXT,
         role TEXT NOT NULL DEFAULT 'user'
     )
     """)
@@ -60,9 +75,24 @@ def init_db():
     db.close()
 
 
+def migrate_db():
+    db = get_db()
+    cursor = db.cursor()
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+        db.commit()
+        print("Phone stolpec dodan.")
+    except sqlite3.OperationalError:
+        print("Phone stolpec že obstaja.")
+
+    db.close()
+
+
 init_db()
+migrate_db()
 
-
+# ------------------ BRISANJE POTEKLIH TERMINOV ------------------
 def pobrisi_potekle_termine():
     db = get_db()
     cursor = db.cursor()
@@ -82,7 +112,7 @@ def pobrisi_potekle_termine():
 def pred_vsako_zahtevo():
     pobrisi_potekle_termine()
 
-
+# ------------------ PRIPRAVA DNI ZA PRIKAZ ------------------
 def pripravi_dneve_za_prikaz(termini, stevilo_dni=14):
     po_dnevih = {}
 
@@ -134,7 +164,7 @@ def pripravi_dneve_za_prikaz(termini, stevilo_dni=14):
 
     return rezultat
 
-
+# ------------------ USTVARI DNEVE ------------------
 def ustvari_dneve(zacetek_dneva, stevilo_dni):
     db = get_db()
     cursor = db.cursor()
@@ -158,7 +188,192 @@ def ustvari_dneve(zacetek_dneva, stevilo_dni):
     db.commit()
     db.close()
 
+# ------------------ EMAIL HELPERS ------------------
+def attach_logo_if_exists(msg):
+    logo_path = os.path.join(app.root_path, "static", "images", "logo.jpg")
 
+    if os.path.exists(logo_path):
+        with open(logo_path, "rb") as logo_file:
+            msg.attach(
+                filename="logo.jpg",
+                content_type="image/jpeg",
+                data=logo_file.read(),
+                disposition="inline",
+                headers={"Content-ID": "<logo_image>"}
+            )
+    else:
+        print("Logo ni najden:", logo_path)
+
+
+def send_booking_emails(user_email, user_name, user_phone, term_date, term_time, hairstyle):
+    try:
+        # ------------------ USER EMAIL ------------------
+        user_msg = Message(
+            subject="Potrditev rezervacije - Budi Blendz",
+            recipients=[user_email]
+        )
+
+        user_msg.body = f"""Pozdravljen {user_name},
+
+tvoj termin je uspešno rezerviran.
+
+Datum: {term_date}
+Ura: {term_time}
+Storitev: {hairstyle}
+Telefon: {user_phone}
+
+Hvala za rezervacijo.
+Budi Blendz
+"""
+
+        user_msg.html = f"""
+        <div style="margin:0;padding:40px 20px;background:#f5f5f5;font-family:Arial,sans-serif;">
+            <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.10);">
+
+                <div style="background:#111111;padding:38px 30px;text-align:center;">
+                    <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:180px;width:100%;height:auto;margin:0 auto 14px auto;display:block;">
+                    <div style="font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c9a227;margin-bottom:12px;">
+                        Premium Barber Experience
+                    </div>
+                    <h1 style="margin:0;font-size:34px;color:#ffffff;font-weight:800;">
+                        Budi Blendz
+                    </h1>
+                    <p style="margin:12px 0 0 0;color:#d4d4d4;font-size:15px;">
+                        Potrditev uspešne rezervacije
+                    </p>
+                </div>
+
+                <div style="padding:36px 32px;">
+                    <p style="margin-top:0;font-size:17px;color:#111111;">
+                        Pozdravljen <strong>{user_name}</strong>,
+                    </p>
+
+                    <p style="font-size:15px;line-height:1.7;color:#555555;">
+                        tvoj termin je uspešno rezerviran. Spodaj so vse podrobnosti rezervacije.
+                    </p>
+
+                    <div style="margin:28px 0;padding:24px;background:#fcfaf3;border:1px solid #ead38c;border-radius:18px;">
+                        <table style="width:100%;border-collapse:collapse;">
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Datum</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_date}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Ura</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_time}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Storitev</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{hairstyle}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Telefon</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_phone}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="text-align:center;margin:30px 0 10px 0;">
+                        <span style="display:inline-block;background:#c9a227;color:#ffffff;padding:14px 26px;border-radius:999px;font-weight:bold;font-size:14px;letter-spacing:0.4px;">
+                            Rezervacija potrjena
+                        </span>
+                    </div>
+                </div>
+
+                <div style="background:#fafafa;padding:22px 30px;text-align:center;border-top:1px solid #eeeeee;">
+                    <p style="margin:0;font-size:13px;color:#888888;">Budi Blendz</p>
+                    <p style="margin:8px 0 0 0;font-size:12px;color:#aaaaaa;">Samodejno poslano ob uspešni rezervaciji termina</p>
+                </div>
+            </div>
+        </div>
+        """
+
+        attach_logo_if_exists(user_msg)
+        mail.send(user_msg)
+
+        # ------------------ ADMIN EMAIL ------------------
+        admin_msg = Message(
+            subject="Nova rezervacija termina - Budi Blendz",
+            recipients=[ADMIN_EMAIL]
+        )
+
+        admin_msg.body = f"""Nova rezervacija termina
+
+Ime: {user_name}
+Email: {user_email}
+Telefon: {user_phone}
+Datum: {term_date}
+Ura: {term_time}
+Storitev: {hairstyle}
+"""
+
+        admin_msg.html = f"""
+        <div style="margin:0;padding:40px 20px;background:#f5f5f5;font-family:Arial,sans-serif;">
+            <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.10);">
+
+                <div style="background:linear-gradient(135deg, #111111, #1f1f1f);padding:38px 30px;text-align:center;">
+                    <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:170px;width:100%;height:auto;margin:0 auto 14px auto;display:block;background:#ffffff;padding:10px;border-radius:14px;">
+                    <div style="font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c9a227;margin-bottom:12px;">
+                        Admin Notification
+                    </div>
+                    <h1 style="margin:0;font-size:32px;color:#ffffff;font-weight:800;">
+                        Nova rezervacija
+                    </h1>
+                    <p style="margin:12px 0 0 0;color:#d4d4d4;font-size:15px;">
+                        Budi Blendz sistemsko obvestilo
+                    </p>
+                </div>
+
+                <div style="padding:36px 32px;">
+                    <p style="margin-top:0;font-size:17px;color:#111111;">
+                        Rezerviran je nov termin.
+                    </p>
+
+                    <div style="margin:28px 0;padding:24px;background:#fcfaf3;border:1px solid #ead38c;border-radius:18px;">
+                        <table style="width:100%;border-collapse:collapse;">
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Ime</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_name}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Email</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_email}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Telefon</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_phone}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Datum</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_date}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Ura</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_time}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px 0;font-size:15px;color:#777777;">Storitev</td>
+                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{hairstyle}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div style="background:#fafafa;padding:22px 30px;text-align:center;border-top:1px solid #eeeeee;">
+                    <p style="margin:0;font-size:13px;color:#888888;">Budi Blendz Admin</p>
+                    <p style="margin:8px 0 0 0;font-size:12px;color:#aaaaaa;">Samodejno sistemsko obvestilo</p>
+                </div>
+            </div>
+        </div>
+        """
+
+        attach_logo_if_exists(admin_msg)
+        mail.send(admin_msg)
+
+    except Exception as e:
+        print("Napaka pri pošiljanju emaila:", e)
+
+# ------------------ ROUTES ------------------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -169,9 +384,10 @@ def register():
     if request.method == "POST":
         name = request.form["name"].strip()
         email = request.form["email"].strip().lower()
+        phone = request.form["phone"].strip()
         password = request.form["password"].strip()
 
-        if not name or not email or not password:
+        if not name or not email or not phone or not password:
             flash("Vsa polja so obvezna.")
             return redirect("/register")
 
@@ -190,9 +406,9 @@ def register():
 
         try:
             cursor.execute("""
-                INSERT INTO users (name, email, password, role)
-                VALUES (?, ?, ?, ?)
-            """, (name, email, hashed_password, "user"))
+                INSERT INTO users (name, email, password, phone, role)
+                VALUES (?, ?, ?, ?, ?)
+            """, (name, email, hashed_password, phone, "user"))
             db.commit()
             flash("Registracija je uspela. Zdaj se prijavi.")
         except sqlite3.IntegrityError:
@@ -227,6 +443,7 @@ def login():
 
         flash("Napačen email ali geslo.")
         return redirect("/login")
+
 
     return render_template("login.html")
 
@@ -282,17 +499,33 @@ def reserve(id):
         flash("Ta termin je že rezerviran.")
         return redirect("/booking")
 
+    cursor.execute("SELECT name, phone FROM users WHERE email=?", (session["user"],))
+    user_data = cursor.fetchone()
+
+    user_name = user_data["name"] if user_data and user_data["name"] else "Uporabnik"
+    user_phone = user_data["phone"] if user_data and user_data["phone"] else "Ni telefona"
+
     cursor.execute("""
         UPDATE terms
         SET status='reserved', hairstyle=?, user_email=?
         WHERE id=? AND status='free'
-    """, (hairstyle, session["user"], id))
+    """, (hairstyle, f"{session['user']} | {user_phone}", id))
 
     db.commit()
     db.close()
 
+    send_booking_emails(
+        user_email=session["user"],
+        user_name=user_name,
+        user_phone=user_phone,
+        term_date=termin["date"],
+        term_time=termin["time"],
+        hairstyle=hairstyle
+    )
+
     flash("Termin je bil uspešno rezerviran.")
     return redirect("/booking")
+
 
 @app.route("/admin")
 def admin():
@@ -426,7 +659,7 @@ def izbrisi_vse_termine():
     return redirect("/admin")
 
 
-# ROUTA /make-admin JE ODSTRANJENA ZARADI VARNOSTI
+# ZAČASNO - PO TEM IZBRIŠI
 @app.route("/make-admin")
 def make_admin():
     db = get_db()
@@ -435,6 +668,7 @@ def make_admin():
     db.commit()
     db.close()
     return "Zdaj si admin"
+
 
 @app.route("/galerija")
 def gallery():
@@ -449,6 +683,10 @@ def shop():
 @app.route("/kontakt")
 def contact():
     return render_template("kontakt.html")
+    
+@app.route("/lokacija")
+def location():
+    return render_template("lokacija.html")
 
 
 if __name__ == "__main__":

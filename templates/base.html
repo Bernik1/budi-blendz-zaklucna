@@ -9,13 +9,16 @@
 <body>
 
 <nav class="navbar">
-    <div class="logo">Budi Blendz 💈</div>
+    <div class="logo">
+        <img class="nav-logo" src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Budi Blendz logo">
+    </div>
 
     <div class="nav-links">
         <a href="/">Domov</a>
         <a href="/galerija">Galerija</a>
         <a href="/trgovina">Trgovina</a>
         <a href="/kontakt">Kontakt</a>
+        <a href="/lokacija">Lokacija</a>
         <a href="/booking">Rezervacija</a>
 
         {% if session.get("user") %}
@@ -52,6 +55,5 @@
 <footer class="footer">
     <p>© 2026 Budi Blendz | Vse pravice pridržane</p>
 </footer>
-
 </body>
 </html>

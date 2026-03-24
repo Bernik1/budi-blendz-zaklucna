@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, flash
 import sqlite3
 from datetime import datetime, timedelta
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "secret123"
+app.secret_key = "zamenjaj_to_z_mocnejsim_kljucem"
 
 DNEVI = {
     0: "Ponedeljek",
@@ -15,8 +16,12 @@ DNEVI = {
     6: "Nedelja"
 }
 
+
 def get_db():
-    return sqlite3.connect("database.db")
+    conn = sqlite3.connect("database.db")
+    conn.row_factory = sqlite3.Row
+    return conn
+
 
 def init_db():
     db = get_db()
@@ -25,21 +30,22 @@ def init_db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        email TEXT,
-        password TEXT,
-        role TEXT
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user'
     )
     """)
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS terms (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT,
-        time TEXT,
-        hairstyle TEXT,
-        status TEXT,
-        user_email TEXT
+        date TEXT NOT NULL,
+        time TEXT NOT NULL,
+        hairstyle TEXT DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'free',
+        user_email TEXT DEFAULT '',
+        UNIQUE(date, time)
     )
     """)
 
@@ -53,9 +59,10 @@ def init_db():
     db.commit()
     db.close()
 
+
 init_db()
 
-# ------------------ BRISANJE POTEKLIH TERMINOV ------------------
+
 def pobrisi_potekle_termine():
     db = get_db()
     cursor = db.cursor()
@@ -64,31 +71,28 @@ def pobrisi_potekle_termine():
     danes = zdaj.strftime("%Y-%m-%d")
     trenutna_ura = zdaj.strftime("%H:%M")
 
-    # pobriši stare dneve
     cursor.execute("DELETE FROM terms WHERE date < ?", (danes,))
-
-    # pobriši tudi že pretekle ure današnjega dne
     cursor.execute("DELETE FROM terms WHERE date = ? AND time < ?", (danes, trenutna_ura))
 
     db.commit()
     db.close()
 
-# ------------------ PRED VSAKO ZAHTEVO ------------------
+
 @app.before_request
 def pred_vsako_zahtevo():
     pobrisi_potekle_termine()
 
-# ------------------ PRIPRAVA DNI ZA PRIKAZ ------------------
+
 def pripravi_dneve_za_prikaz(termini, stevilo_dni=14):
     po_dnevih = {}
 
     for termin in termini:
-        termin_id = termin[0]
-        datum = termin[1]
-        ura = termin[2]
-        frizura = termin[3]
-        status = termin[4]
-        user_email = termin[5]
+        termin_id = termin["id"]
+        datum = termin["date"]
+        ura = termin["time"]
+        frizura = termin["hairstyle"]
+        status = termin["status"]
+        user_email = termin["user_email"]
 
         datum_obj = datetime.strptime(datum, "%Y-%m-%d")
         ime_dneva = DNEVI[datum_obj.weekday()]
@@ -130,7 +134,7 @@ def pripravi_dneve_za_prikaz(termini, stevilo_dni=14):
 
     return rezultat
 
-# ------------------ USTVARJANJE VEČ DNI ------------------
+
 def ustvari_dneve(zacetek_dneva, stevilo_dni):
     db = get_db()
     cursor = db.cursor()
@@ -142,7 +146,7 @@ def ustvari_dneve(zacetek_dneva, stevilo_dni):
         datum = dan.strftime("%Y-%m-%d")
 
         for ura in ure:
-            cursor.execute("SELECT * FROM terms WHERE date=? AND time=?", (datum, ura))
+            cursor.execute("SELECT id FROM terms WHERE date=? AND time=?", (datum, ura))
             obstaja = cursor.fetchone()
 
             if not obstaja:
@@ -154,64 +158,90 @@ def ustvari_dneve(zacetek_dneva, stevilo_dni):
     db.commit()
     db.close()
 
-# ------------------ DOMOV ------------------
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# ------------------ REGISTRACIJA ------------------
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        name = request.form["name"]
-        email = request.form["email"]
-        password = request.form["password"]
+        name = request.form["name"].strip()
+        email = request.form["email"].strip().lower()
+        password = request.form["password"].strip()
+
+        if not name or not email or not password:
+            flash("Vsa polja so obvezna.")
+            return redirect("/register")
+
+        if "@" not in email or "." not in email:
+            flash("Vnesi veljaven email naslov.")
+            return redirect("/register")
+
+        if len(password) < 6:
+            flash("Geslo mora imeti vsaj 6 znakov.")
+            return redirect("/register")
+
+        hashed_password = generate_password_hash(password)
 
         db = get_db()
         cursor = db.cursor()
 
-        cursor.execute("""
-            INSERT INTO users (name, email, password, role)
-            VALUES (?, ?, ?, ?)
-        """, (name, email, password, "user"))
+        try:
+            cursor.execute("""
+                INSERT INTO users (name, email, password, role)
+                VALUES (?, ?, ?, ?)
+            """, (name, email, hashed_password, "user"))
+            db.commit()
+            flash("Registracija je uspela. Zdaj se prijavi.")
+        except sqlite3.IntegrityError:
+            flash("Uporabnik s tem emailom že obstaja.")
+            db.close()
+            return redirect("/register")
 
-        db.commit()
         db.close()
-
         return redirect("/login")
 
     return render_template("register.html")
 
-# ------------------ PRIJAVA ------------------
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form["email"]
-        password = request.form["password"]
+        email = request.form["email"].strip().lower()
+        password = request.form["password"].strip()
 
         db = get_db()
         cursor = db.cursor()
-        cursor.execute("SELECT * FROM users WHERE email=? AND password=?", (email, password))
+        cursor.execute("SELECT * FROM users WHERE email=?", (email,))
         user = cursor.fetchone()
         db.close()
 
-        if user:
-            session["user"] = user[2]
-            session["role"] = user[4]
+        if user and check_password_hash(user["password"], password):
+            session["user"] = user["email"]
+            session["role"] = user["role"]
+            session["name"] = user["name"]
+            flash("Uspešno si se prijavil.")
             return redirect("/")
+
+        flash("Napačen email ali geslo.")
+        return redirect("/login")
 
     return render_template("login.html")
 
-# ------------------ ODJAVA ------------------
+
 @app.route("/logout")
 def logout():
     session.clear()
+    flash("Uspešno si se odjavil.")
     return redirect("/")
 
-# ------------------ BOOKING ------------------
+
 @app.route("/booking")
 def booking():
     if "user" not in session:
+        flash("Za rezervacijo se moraš prijaviti.")
         return redirect("/login")
 
     db = get_db()
@@ -221,19 +251,36 @@ def booking():
     db.close()
 
     dnevi = pripravi_dneve_za_prikaz(terms, 14)
-
     return render_template("booking.html", dnevi=dnevi)
 
-# ------------------ REZERVACIJA TERMINA ------------------
+
 @app.route("/reserve/<int:id>", methods=["POST"])
 def reserve(id):
     if "user" not in session:
+        flash("Za rezervacijo se moraš prijaviti.")
         return redirect("/login")
 
-    hairstyle = request.form["hairstyle"]
+    hairstyle = request.form["hairstyle"].strip()
+
+    if not hairstyle:
+        flash("Izberi ali vpiši vrsto frizure.")
+        return redirect("/booking")
 
     db = get_db()
     cursor = db.cursor()
+
+    cursor.execute("SELECT * FROM terms WHERE id=?", (id,))
+    termin = cursor.fetchone()
+
+    if not termin:
+        db.close()
+        flash("Termin ne obstaja.")
+        return redirect("/booking")
+
+    if termin["status"] != "free":
+        db.close()
+        flash("Ta termin je že rezerviran.")
+        return redirect("/booking")
 
     cursor.execute("""
         UPDATE terms
@@ -244,9 +291,9 @@ def reserve(id):
     db.commit()
     db.close()
 
+    flash("Termin je bil uspešno rezerviran.")
     return redirect("/booking")
 
-# ------------------ ADMIN ------------------
 @app.route("/admin")
 def admin():
     if "user" not in session or session["role"] != "admin":
@@ -259,35 +306,44 @@ def admin():
     db.close()
 
     dnevi = pripravi_dneve_za_prikaz(terms, 14)
-
     return render_template("admin.html", dnevi=dnevi)
 
-# ------------------ DODAJ POSAMEZEN TERMIN ------------------
+
 @app.route("/add-term", methods=["POST"])
 def add_term():
     if session.get("role") != "admin":
         return "Ni dovoljeno"
 
-    date = request.form["date"]
-    time = request.form["time"]
+    date = request.form["date"].strip()
+    time = request.form["time"].strip()
+
+    if not date or not time:
+        flash("Datum in ura sta obvezna.")
+        return redirect("/admin")
 
     db = get_db()
     cursor = db.cursor()
 
-    cursor.execute("SELECT * FROM terms WHERE date=? AND time=?", (date, time))
+    cursor.execute("SELECT id FROM terms WHERE date=? AND time=?", (date, time))
     obstaja = cursor.fetchone()
 
-    if not obstaja:
-        cursor.execute("""
-            INSERT INTO terms (date, time, hairstyle, status, user_email)
-            VALUES (?, ?, '', 'free', '')
-        """, (date, time))
-        db.commit()
+    if obstaja:
+        db.close()
+        flash("Ta termin že obstaja.")
+        return redirect("/admin")
 
+    cursor.execute("""
+        INSERT INTO terms (date, time, hairstyle, status, user_email)
+        VALUES (?, ?, '', 'free', '')
+    """, (date, time))
+
+    db.commit()
     db.close()
+
+    flash("Termin je bil dodan.")
     return redirect("/admin")
 
-# ------------------ DODAJ IZBRAN TEDEN ------------------
+
 @app.route("/dodaj-teden", methods=["POST"])
 def dodaj_teden():
     if "user" not in session or session["role"] != "admin":
@@ -297,10 +353,10 @@ def dodaj_teden():
     zacetek_tedna = datetime.strptime(monday_date, "%Y-%m-%d")
 
     ustvari_dneve(zacetek_tedna, 7)
-
+    flash("Teden je bil uspešno dodan.")
     return redirect("/admin")
 
-# ------------------ DODAJ TRENUTNI TEDEN ------------------
+
 @app.route("/dodaj-trenutni-teden")
 def dodaj_trenutni_teden():
     if "user" not in session or session["role"] != "admin":
@@ -310,10 +366,10 @@ def dodaj_trenutni_teden():
     zacetek_tedna = danes - timedelta(days=danes.weekday())
 
     ustvari_dneve(zacetek_tedna, 7)
-
+    flash("Trenutni teden je bil dodan.")
     return redirect("/admin")
 
-# ------------------ DODAJ NASLEDNJI TEDEN ------------------
+
 @app.route("/dodaj-naslednji-teden")
 def dodaj_naslednji_teden():
     if "user" not in session or session["role"] != "admin":
@@ -323,10 +379,10 @@ def dodaj_naslednji_teden():
     zacetek_tedna = danes - timedelta(days=danes.weekday()) + timedelta(days=7)
 
     ustvari_dneve(zacetek_tedna, 7)
-
+    flash("Naslednji teden je bil dodan.")
     return redirect("/admin")
 
-# ------------------ DODAJ 2 TEDNA ------------------
+
 @app.route("/dodaj-dva-tedna")
 def dodaj_dva_tedna():
     if "user" not in session or session["role"] != "admin":
@@ -336,10 +392,10 @@ def dodaj_dva_tedna():
     zacetek_tedna = danes - timedelta(days=danes.weekday())
 
     ustvari_dneve(zacetek_tedna, 14)
-
+    flash("Dodana sta bila 2 tedna terminov.")
     return redirect("/admin")
 
-# ------------------ IZBRIŠI TERMIN ------------------
+
 @app.route("/delete-term/<int:id>")
 def delete_term(id):
     if session.get("role") != "admin":
@@ -351,9 +407,10 @@ def delete_term(id):
     db.commit()
     db.close()
 
+    flash("Termin je bil izbrisan.")
     return redirect("/admin")
 
-# ------------------ IZBRIŠI VSE TERMINE ------------------
+
 @app.route("/izbrisi-vse-termine")
 def izbrisi_vse_termine():
     if "user" not in session or session["role"] != "admin":
@@ -365,34 +422,34 @@ def izbrisi_vse_termine():
     db.commit()
     db.close()
 
+    flash("Vsi termini so bili izbrisani.")
     return redirect("/admin")
 
-# ------------------ MAKE ADMIN ------------------
+
+# ROUTA /make-admin JE ODSTRANJENA ZARADI VARNOSTI
 @app.route("/make-admin")
 def make_admin():
     db = get_db()
     cursor = db.cursor()
-    cursor.execute("UPDATE users SET role='admin' WHERE email='zak.bernik07@gmail.com'")
+    cursor.execute("UPDATE users SET role='admin' WHERE email=?", ("zak.bernik07@gmail.com",))
     db.commit()
     db.close()
-
     return "Zdaj si admin"
 
-# ------------------ GALERIJA ------------------
 @app.route("/galerija")
 def gallery():
     return render_template("galerija.html")
 
-# ------------------ TRGOVINA ------------------
+
 @app.route("/trgovina")
 def shop():
     return render_template("trgovina.html")
 
-# ------------------ KONTAKT ------------------
+
 @app.route("/kontakt")
 def contact():
     return render_template("kontakt.html")
 
-# ------------------ RUN ------------------
+
 if __name__ == "__main__":
     app.run(debug=True)

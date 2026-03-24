@@ -1,16 +1,27 @@
 {% extends "base.html" %}
 
+{% block title %}Prijava | Budi Blendz{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>Prijava</h2>
-    <form method="POST">
-        <label>Email</label>
-        <input name="email" type="email" required>
+<section class="auth-wrapper">
+    <div class="card auth-card">
+        <h2>Prijava</h2>
+        <p class="auth-subtext">Prijavi se za rezervacijo termina.</p>
 
-        <label>Geslo</label>
-        <input name="password" type="password" required>
+        <form method="POST" class="auth-form">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" placeholder="Vnesi email" required>
 
-        <button type="submit" class="btn">Prijava</button>
-    </form>
-</div>
+            <label for="password">Geslo</label>
+            <input id="password" name="password" type="password" placeholder="Vnesi geslo" required>
+
+            <button type="submit" class="btn">Prijava</button>
+        </form>
+
+        <p class="auth-switch">
+            Še nimaš računa?
+            <a href="/register">Registriraj se</a>
+        </p>
+    </div>
+</section>
 {% endblock %}

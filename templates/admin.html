@@ -1,89 +1,111 @@
 {% extends "base.html" %}
 
+{% block title %}Admin | Budi Blendz{% endblock %}
+
 {% block content %}
-<h2>Admin panel</h2>
-
-<div class="card">
-    <h3>Dodaj posamezen termin</h3>
-    <form method="POST" action="/add-term">
-        <label>Datum</label>
-        <input name="date" type="date" required>
-
-        <label>Ura</label>
-        <input name="time" type="time" required>
-
-        <button type="submit" class="btn">Dodaj termin</button>
-    </form>
-</div>
-
-
-<div class="card">
-    <h3>Hitro dodaj termine</h3>
-    <div class="admin-button-row">
-        <a class="btn" href="/dodaj-trenutni-teden">Dodaj trenutni teden</a>
-        <a class="btn" href="/dodaj-naslednji-teden">Dodaj naslednji teden</a>
-        <a class="btn" href="/dodaj-dva-tedna">Dodaj 2 tedna</a>
+<section class="admin-wrapper">
+    <div class="page-header">
+        <h2>Admin panel</h2>
+        <p>Upravljanje terminov, pregled rezervacij in dodajanje novih terminov.</p>
     </div>
-</div>
 
-<div class="card">
-    <h3>Nevarno območje</h3>
-    <a class="btn danger" href="/izbrisi-vse-termine">Izbriši vse termine</a>
-</div>
+    <div class="admin-grid">
+        <div class="card">
+            <h3>Dodaj posamezen termin</h3>
+            <form method="POST" action="/add-term" class="admin-form">
+                <label for="date">Datum</label>
+                <input id="date" name="date" type="date" required>
 
-<h2 class="admin-section-title">Prosti termini</h2>
+                <label for="time">Ura</label>
+                <input id="time" name="time" type="time" required>
 
-{% for dan in dnevi %}
-    {% set prosti = dan.termini | selectattr("status", "equalto", "free") | list %}
-    {% if prosti %}
-    <section class="section">
-        <h3>{{ dan.ime_dneva }} - {{ dan.datum }}</h3>
+                <button type="submit" class="btn">Dodaj termin</button>
+            </form>
+        </div>
 
-        <div class="admin-compact-grid">
-            {% for t in prosti %}
-            <div class="admin-mini-card">
-                <p><strong>Datum:</strong> {{ t.date }}</p>
-                <p><strong>Ura:</strong> {{ t.time }}</p>
-                <p><strong>Status:</strong> Prosto</p>
-                <a class="btn danger small-btn" href="/delete-term/{{ t.id }}">Izbriši</a>
+        <div class="card">
+            <h3>Hitro dodaj termine</h3>
+            <p>Z enim klikom ustvari termine za cel teden ali dva tedna.</p>
+            <div class="admin-button-row">
+                <a class="btn" href="/dodaj-trenutni-teden">Dodaj trenutni teden</a>
+                <a class="btn" href="/dodaj-naslednji-teden">Dodaj naslednji teden</a>
+                <a class="btn" href="/dodaj-dva-tedna">Dodaj 2 tedna</a>
             </div>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-{% endfor %}
-
-<h2 class="admin-section-title">Zasedeni termini</h2>
-
-{% for dan in dnevi %}
-    {% set rezervirani = dan.termini | selectattr("status", "equalto", "reserved") | list %}
-    {% if rezervirani %}
-    <section class="section">
-        <div class="reserved-day-header">
-            <h3>{{ dan.ime_dneva }} - {{ dan.datum }}</h3>
-            <span class="reserved-badge">{{ rezervirani|length }} rezervacij</span>
         </div>
 
-        <div class="reserved-list">
-            {% for t in rezervirani %}
-            <div class="reserved-row">
-                <div class="reserved-main">
-                    <div class="reserved-time">{{ t.time }}</div>
-                    <div class="reserved-user">{{ t.user_email if t.user_email else "Brez uporabnika" }}</div>
-                </div>
+        <div class="card danger-card">
+            <h3>Nevarno območje</h3>
+            <p>Ta možnost izbriše vse termine iz sistema.</p>
+            <a class="btn danger" href="/izbrisi-vse-termine" onclick="return confirm('Ali res želiš izbrisati vse termine?')">
+                Izbriši vse termine
+            </a>
+        </div>
+    </div>
 
-                <div class="reserved-info">
-                    <span class="reserved-style">{{ t.hairstyle if t.hairstyle else "Ni izbranega stila" }}</span>
-                    <span class="reserved-status">Zaseden termin</span>
-                </div>
+    <h2 class="admin-section-title">Prosti termini</h2>
 
-                <div class="reserved-actions">
-                    <a class="btn danger small-btn" href="/delete-term/{{ t.id }}">Izbriši</a>
-                </div>
+    {% for dan in dnevi %}
+        {% set prosti = dan.termini | selectattr("status", "equalto", "free") | list %}
+        {% if prosti %}
+        <section class="section">
+            <div class="reserved-day-header">
+                <h3>{{ dan.ime_dneva }} - {{ dan.datum }}</h3>
+                <span class="reserved-badge">{{ prosti|length }} prostih terminov</span>
             </div>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-{% endfor %}
+
+            <div class="admin-compact-grid">
+                {% for t in prosti %}
+                <div class="admin-mini-card">
+                    <p><strong>Datum:</strong> {{ t.date }}</p>
+                    <p><strong>Ura:</strong> {{ t.time }}</p>
+                    <p><strong>Status:</strong> Prosto</p>
+
+                    <div class="reserved-actions">
+                        <a class="btn danger small-btn" href="/delete-term/{{ t.id }}" onclick="return confirm('Ali želiš izbrisati ta termin?')">
+                            Izbriši
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+    {% endfor %}
+
+    <h2 class="admin-section-title">Zasedeni termini</h2>
+
+    {% for dan in dnevi %}
+        {% set rezervirani = dan.termini | selectattr("status", "equalto", "reserved") | list %}
+        {% if rezervirani %}
+        <section class="section">
+            <div class="reserved-day-header">
+                <h3>{{ dan.ime_dneva }} - {{ dan.datum }}</h3>
+                <span class="reserved-badge">{{ rezervirani|length }} rezervacij</span>
+            </div>
+
+            <div class="reserved-list">
+                {% for t in rezervirani %}
+                <div class="reserved-row">
+                    <div class="reserved-main">
+                        <div class="reserved-time">{{ t.time }}</div>
+                        <div class="reserved-user">{{ t.user_email if t.user_email else "Brez uporabnika" }}</div>
+                    </div>
+
+                    <div class="reserved-info">
+                        <span class="reserved-style">{{ t.hairstyle if t.hairstyle else "Ni izbranega stila" }}</span>
+                        <span class="reserved-status">Zaseden termin</span>
+                    </div>
+
+                    <div class="reserved-actions">
+                        <a class="btn danger small-btn" href="/delete-term/{{ t.id }}" onclick="return confirm('Ali želiš izbrisati ta termin?')">
+                            Izbriši
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+    {% endfor %}
+</section>
 {% endblock %}

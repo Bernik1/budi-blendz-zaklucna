@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 
+{% block title %}Rezervacija | Budi Blendz{% endblock %}
+
 {% block content %}
 <section class="booking-wrapper">
     <div class="booking-steps">
         <div class="step current">Izberi termin</div>
+    </div>
+
+    <div class="booking-title">
+        <h2>IZBERI TERMIN</h2>
+        <p>Izberi dan, uro in stil frizure za rezervacijo.</p>
     </div>
 
     <div class="days-strip">
@@ -32,10 +39,6 @@
                 <span class="day-price">10,00 €</span>
             </button>
         {% endfor %}
-    </div>
-
-    <div class="booking-title">
-        <h2>IZBERI TERMIN</h2>
     </div>
 
     {% for dan in dnevi %}
@@ -68,12 +71,13 @@
                     </div>
 
                     <form method="POST" action="/reserve/{{ t.id }}" class="compact-form">
-                        <select name="hairstyle" required>
+                        <label for="hairstyle-{{ t.id }}" class="form-label">Izberi stil</label>
+                        <select name="hairstyle" id="hairstyle-{{ t.id }}" required>
                             <option value="">Izberi stil</option>
-                            <option>Fade</option>
-                            <option>Buzz Cut</option>
-                            <option>Taper</option>
-                            <option>Beard Styling</option>
+                            <option value="Fade">Fade</option>
+                            <option value="Buzz Cut">Buzz Cut</option>
+                            <option value="Taper">Taper</option>
+                            <option value="Beard Styling">Beard Styling</option>
                         </select>
                         <button type="submit" class="btn small-btn">Rezerviraj</button>
                     </form>
@@ -83,13 +87,13 @@
             {% elif zasedeni %}
                 <div class="day-status-box zasedeno">
                     <h3>ZASEDENO</h3>
-                    <p>Vsi termini za ta dan so že rezervirani</p>
+                    <p>Vsi termini za ta dan so že rezervirani.</p>
                 </div>
 
             {% else %}
                 <div class="day-status-box zaprto">
                     <h3>ZAPRTO</h3>
-                    <p>Ta dan ni odprt</p>
+                    <p>Ta dan trenutno ni odprt za rezervacije.</p>
                 </div>
             {% endif %}
         </div>
@@ -102,6 +106,7 @@ function prikaziDan(id, element) {
     const vsiDnevi = document.querySelectorAll(".day-section");
     vsiDnevi.forEach(dan => {
         dan.classList.add("hidden-day");
+        dan.classList.remove("active-day");
     });
 
     const vseKartice = document.querySelectorAll(".day-card");
@@ -109,7 +114,10 @@ function prikaziDan(id, element) {
         kartica.classList.remove("selected");
     });
 
-    document.getElementById(id).classList.remove("hidden-day");
+    const izbranDan = document.getElementById(id);
+    izbranDan.classList.remove("hidden-day");
+    izbranDan.classList.add("active-day");
+
     element.classList.add("selected");
 }
 </script>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Budi Blendz</title>
+    <title>{% block title %}Budi Blendz{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -19,6 +19,7 @@
         <a href="/booking">Rezervacija</a>
 
         {% if session.get("user") %}
+            <span class="welcome-user">Pozdravljen, {{ session.get("name", "uporabnik") }}</span>
             <a href="/logout">Odjava</a>
         {% else %}
             <a href="/login">Prijava</a>
@@ -32,11 +33,24 @@
 </nav>
 
 <main class="container">
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="flash-wrapper">
+                {% for message in messages %}
+                    <div class="flash-message">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
     {% block content %}{% endblock %}
 </main>
 
 <footer class="footer">
-    <p>© 2026 Budi Blendz</p>
+    <p>© 2026 Budi Blendz | Vse pravice pridržane</p>
 </footer>
 
 </body>

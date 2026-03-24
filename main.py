@@ -6,18 +6,20 @@ from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "zamenjaj_to_z_mocnejsim_kljucem"
+
+# skrivnosti beri iz environment variables
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
 
 # ------------------ MAIL CONFIG ------------------
 app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
-app.config["MAIL_USERNAME"] = "zak.bernik07@gmail.com"
-app.config["MAIL_PASSWORD"] = "aqjguvgabjftfcxf"
-app.config["MAIL_DEFAULT_SENDER"] = "zak.bernik07@gmail.com"
+app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
+app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
+app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
 
 mail = Mail(app)
-ADMIN_EMAIL = "zak.bernik07@gmail.com"
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
 
 # ------------------ DNEVI ------------------
 DNEVI = {
@@ -169,7 +171,7 @@ def ustvari_dneve(zacetek_dneva, stevilo_dni):
     db = get_db()
     cursor = db.cursor()
 
-    ure = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]
+    ure = ["12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"]
 
     for i in range(stevilo_dni):
         dan = zacetek_dneva + timedelta(days=i)
@@ -201,13 +203,15 @@ def attach_logo_if_exists(msg):
                 disposition="inline",
                 headers={"Content-ID": "<logo_image>"}
             )
-    else:
-        print("Logo ni najden:", logo_path)
 
 
 def send_booking_emails(user_email, user_name, user_phone, term_date, term_time, hairstyle):
+    # če env spremenljivke niso nastavljene, email samo preskoči
+    if not app.config["MAIL_USERNAME"] or not app.config["MAIL_PASSWORD"] or not ADMIN_EMAIL:
+        print("Mail nastavitve niso nastavljene.")
+        return
+
     try:
-        # ------------------ USER EMAIL ------------------
         user_msg = Message(
             subject="Potrditev rezervacije - Budi Blendz",
             recipients=[user_email]
@@ -229,7 +233,6 @@ Budi Blendz
         user_msg.html = f"""
         <div style="margin:0;padding:40px 20px;background:#f5f5f5;font-family:Arial,sans-serif;">
             <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.10);">
-
                 <div style="background:#111111;padding:38px 30px;text-align:center;">
                     <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:180px;width:100%;height:auto;margin:0 auto 14px auto;display:block;">
                     <div style="font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c9a227;margin-bottom:12px;">
@@ -254,35 +257,12 @@ Budi Blendz
 
                     <div style="margin:28px 0;padding:24px;background:#fcfaf3;border:1px solid #ead38c;border-radius:18px;">
                         <table style="width:100%;border-collapse:collapse;">
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Datum</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_date}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Ura</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_time}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Storitev</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{hairstyle}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Telefon</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_phone}</td>
-                            </tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Datum</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_date}</td></tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Ura</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_time}</td></tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Storitev</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{hairstyle}</td></tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Telefon</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_phone}</td></tr>
                         </table>
                     </div>
-
-                    <div style="text-align:center;margin:30px 0 10px 0;">
-                        <span style="display:inline-block;background:#c9a227;color:#ffffff;padding:14px 26px;border-radius:999px;font-weight:bold;font-size:14px;letter-spacing:0.4px;">
-                            Rezervacija potrjena
-                        </span>
-                    </div>
-                </div>
-
-                <div style="background:#fafafa;padding:22px 30px;text-align:center;border-top:1px solid #eeeeee;">
-                    <p style="margin:0;font-size:13px;color:#888888;">Budi Blendz</p>
-                    <p style="margin:8px 0 0 0;font-size:12px;color:#aaaaaa;">Samodejno poslano ob uspešni rezervaciji termina</p>
                 </div>
             </div>
         </div>
@@ -291,7 +271,6 @@ Budi Blendz
         attach_logo_if_exists(user_msg)
         mail.send(user_msg)
 
-        # ------------------ ADMIN EMAIL ------------------
         admin_msg = Message(
             subject="Nova rezervacija termina - Budi Blendz",
             recipients=[ADMIN_EMAIL]
@@ -310,7 +289,6 @@ Storitev: {hairstyle}
         admin_msg.html = f"""
         <div style="margin:0;padding:40px 20px;background:#f5f5f5;font-family:Arial,sans-serif;">
             <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.10);">
-
                 <div style="background:linear-gradient(135deg, #111111, #1f1f1f);padding:38px 30px;text-align:center;">
                     <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:170px;width:100%;height:auto;margin:0 auto 14px auto;display:block;background:#ffffff;padding:10px;border-radius:14px;">
                     <div style="font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c9a227;margin-bottom:12px;">
@@ -319,49 +297,19 @@ Storitev: {hairstyle}
                     <h1 style="margin:0;font-size:32px;color:#ffffff;font-weight:800;">
                         Nova rezervacija
                     </h1>
-                    <p style="margin:12px 0 0 0;color:#d4d4d4;font-size:15px;">
-                        Budi Blendz sistemsko obvestilo
-                    </p>
                 </div>
 
                 <div style="padding:36px 32px;">
-                    <p style="margin-top:0;font-size:17px;color:#111111;">
-                        Rezerviran je nov termin.
-                    </p>
-
                     <div style="margin:28px 0;padding:24px;background:#fcfaf3;border:1px solid #ead38c;border-radius:18px;">
                         <table style="width:100%;border-collapse:collapse;">
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Ime</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_name}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Email</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_email}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Telefon</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_phone}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Datum</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_date}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Ura</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_time}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:10px 0;font-size:15px;color:#777777;">Storitev</td>
-                                <td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{hairstyle}</td>
-                            </tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Ime</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_name}</td></tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Email</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_email}</td></tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Telefon</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_phone}</td></tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Datum</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_date}</td></tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Ura</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_time}</td></tr>
+                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Storitev</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{hairstyle}</td></tr>
                         </table>
                     </div>
-                </div>
-
-                <div style="background:#fafafa;padding:22px 30px;text-align:center;border-top:1px solid #eeeeee;">
-                    <p style="margin:0;font-size:13px;color:#888888;">Budi Blendz Admin</p>
-                    <p style="margin:8px 0 0 0;font-size:12px;color:#aaaaaa;">Samodejno sistemsko obvestilo</p>
                 </div>
             </div>
         </div>
@@ -443,7 +391,6 @@ def login():
 
         flash("Napačen email ali geslo.")
         return redirect("/login")
-
 
     return render_template("login.html")
 
@@ -659,17 +606,6 @@ def izbrisi_vse_termine():
     return redirect("/admin")
 
 
-# ZAČASNO - PO TEM IZBRIŠI
-@app.route("/make-admin")
-def make_admin():
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("UPDATE users SET role='admin' WHERE email=?", ("zak.bernik07@gmail.com",))
-    db.commit()
-    db.close()
-    return "Zdaj si admin"
-
-
 @app.route("/galerija")
 def gallery():
     return render_template("galerija.html")
@@ -683,11 +619,12 @@ def shop():
 @app.route("/kontakt")
 def contact():
     return render_template("kontakt.html")
-    
+
+
 @app.route("/lokacija")
 def location():
     return render_template("lokacija.html")
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)

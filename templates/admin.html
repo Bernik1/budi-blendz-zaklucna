@@ -16,6 +16,7 @@
     </form>
 </div>
 
+
 <div class="card">
     <h3>Hitro dodaj termine</h3>
     <div class="admin-button-row">
@@ -24,16 +25,38 @@
         <a class="btn" href="/dodaj-dva-tedna">Dodaj 2 tedna</a>
     </div>
 </div>
+
 <div class="card">
     <h3>Nevarno območje</h3>
     <a class="btn danger" href="/izbrisi-vse-termine">Izbriši vse termine</a>
 </div>
 
+<h2 class="admin-section-title">Prosti termini</h2>
+
+{% for dan in dnevi %}
+    {% set prosti = dan.termini | selectattr("status", "equalto", "free") | list %}
+    {% if prosti %}
+    <section class="section">
+        <h3>{{ dan.ime_dneva }} - {{ dan.datum }}</h3>
+
+        <div class="admin-compact-grid">
+            {% for t in prosti %}
+            <div class="admin-mini-card">
+                <p><strong>Datum:</strong> {{ t.date }}</p>
+                <p><strong>Ura:</strong> {{ t.time }}</p>
+                <p><strong>Status:</strong> Prosto</p>
+                <a class="btn danger small-btn" href="/delete-term/{{ t.id }}">Izbriši</a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+{% endfor %}
+
 <h2 class="admin-section-title">Zasedeni termini</h2>
 
 {% for dan in dnevi %}
     {% set rezervirani = dan.termini | selectattr("status", "equalto", "reserved") | list %}
-
     {% if rezervirani %}
     <section class="section">
         <div class="reserved-day-header">

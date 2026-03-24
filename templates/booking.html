@@ -9,6 +9,9 @@
     <div class="days-strip">
         {% for dan in dnevi %}
             {% set datum_deli = dan.datum.split('-') %}
+            {% set prosti = dan.termini | selectattr("status", "equalto", "free") | list %}
+            {% set zasedeni = dan.termini | selectattr("status", "equalto", "reserved") | list %}
+
             <button
                 class="day-card {% if loop.first %}selected{% endif %}"
                 type="button"
@@ -17,6 +20,15 @@
                 <span class="day-name">{{ dan.ime_dneva }}</span>
                 <span class="day-number">{{ datum_deli[2] }}</span>
                 <span class="day-month">{{ datum_deli[1] }} / {{ datum_deli[0] }}</span>
+
+                {% if prosti %}
+                    <span class="day-status-label status-open">PROSTO</span>
+                {% elif zasedeni %}
+                    <span class="day-status-label status-full">ZASEDENO</span>
+                {% else %}
+                    <span class="day-status-label status-closed">ZAPRTO</span>
+                {% endif %}
+
                 <span class="day-price">10,00 €</span>
             </button>
         {% endfor %}
@@ -31,18 +43,28 @@
         class="day-section {% if loop.first %}active-day{% else %}hidden-day{% endif %}"
         id="dan-{{ loop.index }}"
     >
-        <h3>{{ dan.ime_dneva }}, {{ dan.datum }}</h3>
+        {% set prosti = dan.termini | selectattr("status", "equalto", "free") | list %}
+        {% set zasedeni = dan.termini | selectattr("status", "equalto", "reserved") | list %}
+
+        <div class="day-header-line">
+            <h3>{{ dan.ime_dneva }}, {{ dan.datum }}</h3>
+
+            {% if prosti %}
+                <span class="header-status-pill open-pill">Prosto</span>
+            {% elif zasedeni %}
+                <span class="header-status-pill full-pill">Zasedeno</span>
+            {% else %}
+                <span class="header-status-pill closed-pill">Zaprto</span>
+            {% endif %}
+        </div>
 
         <div class="compact-time-list">
-            {% set prosti = dan.termini | selectattr("status", "equalto", "free") | list %}
-            {% set zasedeni = dan.termini | selectattr("status", "equalto", "reserved") | list %}
-
             {% if prosti %}
                 {% for t in prosti %}
                 <div class="compact-time-card">
                     <div class="compact-time-top">
                         <span class="compact-hour">{{ t.time }}</span>
-                        <span class="compact-price">18,00 €</span>
+                        <span class="compact-price">10,00 €</span>
                     </div>
 
                     <form method="POST" action="/reserve/{{ t.id }}" class="compact-form">

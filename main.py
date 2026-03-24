@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 app.secret_key = "secret123"
 
-# ------------------ SLOVENSKI DNEVI ------------------
 DNEVI = {
     0: "Ponedeljek",
     1: "Torek",
@@ -16,11 +15,9 @@ DNEVI = {
     6: "Nedelja"
 }
 
-# ------------------ POVEZAVA NA BAZO ------------------
 def get_db():
     return sqlite3.connect("database.db")
 
-# ------------------ USTVARJANJE BAZE ------------------
 def init_db():
     db = get_db()
     cursor = db.cursor()
@@ -46,15 +43,43 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS closed_days (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT UNIQUE
+    )
+    """)
+
     db.commit()
     db.close()
 
 init_db()
 
-# ------------------ GRUPIRANJE TERMINOV PO DNEVIH ------------------
-def grupiraj_termine_po_dnevih(termini):
-    rezultat = []
+# ------------------ BRISANJE POTEKLIH TERMINOV ------------------
+def pobrisi_potekle_termine():
+    db = get_db()
+    cursor = db.cursor()
 
+    zdaj = datetime.now()
+    danes = zdaj.strftime("%Y-%m-%d")
+    trenutna_ura = zdaj.strftime("%H:%M")
+
+    # pobriši stare dneve
+    cursor.execute("DELETE FROM terms WHERE date < ?", (danes,))
+
+    # pobriši tudi že pretekle ure današnjega dne
+    cursor.execute("DELETE FROM terms WHERE date = ? AND time < ?", (danes, trenutna_ura))
+
+    db.commit()
+    db.close()
+
+# ------------------ PRED VSAKO ZAHTEVO ------------------
+@app.before_request
+def pred_vsako_zahtevo():
+    pobrisi_potekle_termine()
+
+# ------------------ PRIPRAVA DNI ZA PRIKAZ ------------------
+def pripravi_dneve_za_prikaz(termini, stevilo_dni=14):
     po_dnevih = {}
 
     for termin in termini:
@@ -67,16 +92,15 @@ def grupiraj_termine_po_dnevih(termini):
 
         datum_obj = datetime.strptime(datum, "%Y-%m-%d")
         ime_dneva = DNEVI[datum_obj.weekday()]
-        kljuc = datum
 
-        if kljuc not in po_dnevih:
-            po_dnevih[kljuc] = {
+        if datum not in po_dnevih:
+            po_dnevih[datum] = {
                 "datum": datum,
                 "ime_dneva": ime_dneva,
                 "termini": []
             }
 
-        po_dnevih[kljuc]["termini"].append({
+        po_dnevih[datum]["termini"].append({
             "id": termin_id,
             "date": datum,
             "time": ura,
@@ -85,12 +109,28 @@ def grupiraj_termine_po_dnevih(termini):
             "user_email": user_email
         })
 
-    for datum in sorted(po_dnevih.keys()):
-        rezultat.append(po_dnevih[datum])
+    danes = datetime.today()
+    zacetek = danes - timedelta(days=danes.weekday())
+
+    rezultat = []
+
+    for i in range(stevilo_dni):
+        dan_obj = zacetek + timedelta(days=i)
+        datum = dan_obj.strftime("%Y-%m-%d")
+        ime_dneva = DNEVI[dan_obj.weekday()]
+
+        if datum in po_dnevih:
+            rezultat.append(po_dnevih[datum])
+        else:
+            rezultat.append({
+                "datum": datum,
+                "ime_dneva": ime_dneva,
+                "termini": []
+            })
 
     return rezultat
 
-# ------------------ POMOŽNA FUNKCIJA ZA USTVARJANJE VEČ DNI ------------------
+# ------------------ USTVARJANJE VEČ DNI ------------------
 def ustvari_dneve(zacetek_dneva, stevilo_dni):
     db = get_db()
     cursor = db.cursor()
@@ -127,15 +167,13 @@ def register():
         email = request.form["email"]
         password = request.form["password"]
 
-        role = "user"
-
         db = get_db()
         cursor = db.cursor()
 
         cursor.execute("""
             INSERT INTO users (name, email, password, role)
             VALUES (?, ?, ?, ?)
-        """, (name, email, password, role))
+        """, (name, email, password, "user"))
 
         db.commit()
         db.close()
@@ -153,10 +191,8 @@ def login():
 
         db = get_db()
         cursor = db.cursor()
-
         cursor.execute("SELECT * FROM users WHERE email=? AND password=?", (email, password))
         user = cursor.fetchone()
-
         db.close()
 
         if user:
@@ -172,7 +208,7 @@ def logout():
     session.clear()
     return redirect("/")
 
-# ------------------ REZERVACIJA STRAN ------------------
+# ------------------ BOOKING ------------------
 @app.route("/booking")
 def booking():
     if "user" not in session:
@@ -180,13 +216,11 @@ def booking():
 
     db = get_db()
     cursor = db.cursor()
-
-    cursor.execute("SELECT * FROM terms WHERE status='free' ORDER BY date, time")
+    cursor.execute("SELECT * FROM terms ORDER BY date, time")
     terms = cursor.fetchall()
-
     db.close()
 
-    dnevi = grupiraj_termine_po_dnevih(terms)
+    dnevi = pripravi_dneve_za_prikaz(terms, 14)
 
     return render_template("booking.html", dnevi=dnevi)
 
@@ -204,7 +238,7 @@ def reserve(id):
     cursor.execute("""
         UPDATE terms
         SET status='reserved', hairstyle=?, user_email=?
-        WHERE id=?
+        WHERE id=? AND status='free'
     """, (hairstyle, session["user"], id))
 
     db.commit()
@@ -212,7 +246,7 @@ def reserve(id):
 
     return redirect("/booking")
 
-# ------------------ ADMIN PANEL ------------------
+# ------------------ ADMIN ------------------
 @app.route("/admin")
 def admin():
     if "user" not in session or session["role"] != "admin":
@@ -220,13 +254,11 @@ def admin():
 
     db = get_db()
     cursor = db.cursor()
-
     cursor.execute("SELECT * FROM terms ORDER BY date, time")
     terms = cursor.fetchall()
-
     db.close()
 
-    dnevi = grupiraj_termine_po_dnevih(terms)
+    dnevi = pripravi_dneve_za_prikaz(terms, 14)
 
     return render_template("admin.html", dnevi=dnevi)
 
@@ -253,7 +285,6 @@ def add_term():
         db.commit()
 
     db.close()
-
     return redirect("/admin")
 
 # ------------------ DODAJ IZBRAN TEDEN ------------------
@@ -308,7 +339,7 @@ def dodaj_dva_tedna():
 
     return redirect("/admin")
 
-# ------------------ BRISANJE TERMINA ------------------
+# ------------------ IZBRIŠI TERMIN ------------------
 @app.route("/delete-term/<int:id>")
 def delete_term(id):
     if session.get("role") != "admin":
@@ -316,26 +347,12 @@ def delete_term(id):
 
     db = get_db()
     cursor = db.cursor()
-
     cursor.execute("DELETE FROM terms WHERE id=?", (id,))
-
     db.commit()
     db.close()
 
     return redirect("/admin")
 
-# ------------------ DODELITEV ADMIN VLOGE ------------------
-@app.route("/make-admin")
-def make_admin():
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("UPDATE users SET role='admin' WHERE email='zak.bernik07@gmail.com'")
-
-    db.commit()
-    db.close()
-
-    return "Zdaj si admin"
 # ------------------ IZBRIŠI VSE TERMINE ------------------
 @app.route("/izbrisi-vse-termine")
 def izbrisi_vse_termine():
@@ -344,63 +361,22 @@ def izbrisi_vse_termine():
 
     db = get_db()
     cursor = db.cursor()
-
     cursor.execute("DELETE FROM terms")
-
     db.commit()
     db.close()
 
     return redirect("/admin")
-def pripravi_dneve_za_prikaz(termini, stevilo_dni=14):
-    po_dnevih = {}
 
-    for termin in termini:
-        termin_id = termin[0]
-        datum = termin[1]
-        ura = termin[2]
-        frizura = termin[3]
-        status = termin[4]
-        user_email = termin[5]
+# ------------------ MAKE ADMIN ------------------
+@app.route("/make-admin")
+def make_admin():
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("UPDATE users SET role='admin' WHERE email='zak.bernik07@gmail.com'")
+    db.commit()
+    db.close()
 
-        datum_obj = datetime.strptime(datum, "%Y-%m-%d")
-        ime_dneva = DNEVI[datum_obj.weekday()]
-
-        if datum not in po_dnevih:
-            po_dnevih[datum] = {
-                "datum": datum,
-                "ime_dneva": ime_dneva,
-                "termini": []
-            }
-
-        po_dnevih[datum]["termini"].append({
-            "id": termin_id,
-            "date": datum,
-            "time": ura,
-            "hairstyle": frizura,
-            "status": status,
-            "user_email": user_email
-        })
-
-    danes = datetime.today()
-    zacetek = danes - timedelta(days=danes.weekday())  # od ponedeljka
-
-    rezultat = []
-
-    for i in range(stevilo_dni):
-        dan_obj = zacetek + timedelta(days=i)
-        datum = dan_obj.strftime("%Y-%m-%d")
-        ime_dneva = DNEVI[dan_obj.weekday()]
-
-        if datum in po_dnevih:
-            rezultat.append(po_dnevih[datum])
-        else:
-            rezultat.append({
-                "datum": datum,
-                "ime_dneva": ime_dneva,
-                "termini": []
-            })
-
-    return rezultat
+    return "Zdaj si admin"
 
 # ------------------ GALERIJA ------------------
 @app.route("/galerija")
@@ -417,6 +393,6 @@ def shop():
 def contact():
     return render_template("kontakt.html")
 
-# ------------------ ZAGON ------------------
+# ------------------ RUN ------------------
 if __name__ == "__main__":
     app.run(debug=True)

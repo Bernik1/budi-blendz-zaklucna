@@ -3,6 +3,7 @@ from flask_mail import Mail, Message
 import sqlite3
 import os
 import threading
+import traceback
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -254,7 +255,8 @@ Budi Blendz
         print("Email uporabniku uspešno poslan:", user_email)
 
     except Exception as e:
-        print("Napaka pri pošiljanju user emaila:", repr(e))
+        print("===== NAPAKA USER EMAIL =====")
+        traceback.print_exc()
 
     try:
         print("Pošiljam email adminu:", ADMIN_EMAIL)
@@ -277,7 +279,8 @@ Storitev: {hairstyle}
         print("Email adminu uspešno poslan:", ADMIN_EMAIL)
 
     except Exception as e:
-        print("Napaka pri pošiljanju admin emaila:", repr(e))
+        print("===== NAPAKA ADMIN EMAIL =====")
+        traceback.print_exc()
 
     return True
 

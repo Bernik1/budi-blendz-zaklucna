@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load static %}
 
 {% block content %}
 <section class="section">
@@ -8,25 +7,25 @@
     <div class="grid">
 
         <div class="card product">
-            <img src="{% static 'images/ELEVEN.jpg' %}" alt="KEEP MY CURL DEFINING CREAM">
+            <img src="{{ url_for('static', filename='images/ELEVEN.jpg') }}" alt="KEEP MY CURL DEFINING CREAM">
             <h3>KEEP MY CURL DEFINING CREAM</h3>
             <span class="price">20€</span>
         </div>
 
         <div class="card product">
-            <img src="{% static 'images/ELEVEN1.jpg' %}" alt="Extra Hold Styling Clay">
+            <img src="{{ url_for('static', filename='images/ELEVEN1.jpg') }}" alt="Extra Hold Styling Clay">
             <h3>Extra Hold Styling Clay</h3>
             <span class="price">20€</span>
         </div>
 
         <div class="card product">
-            <img src="{% static 'images/ELEVEN2.jpg' %}" alt="I Want Body Texture Spray">
+            <img src="{{ url_for('static', filename='images/ELEVEN2.jpg') }}" alt="I Want Body Texture Spray">
             <h3>I Want Body Texture Spray</h3>
             <span class="price">20€</span>
         </div>
 
         <div class="card product">
-            <img src="{% static 'images/ELEVEN3.jpg' %}" alt="Slick Hold Styling Pomade">
+            <img src="{{ url_for('static', filename='images/ELEVEN3.jpg') }}" alt="Slick Hold Styling Pomade">
             <h3>Slick Hold Styling Pomade</h3>
             <span class="price">20€</span>
         </div>

@@ -620,5 +620,25 @@ def location():
     return render_template("lokacija.html")
 
 
+
+
+@app.route("/test-mail")
+def test_mail():
+    try:
+        msg = Message(
+            subject="Test email",
+            recipients=["zak.bernik07@gmail.com"],
+            body="To je testni email iz Renderja."
+        )
+        mail.send(msg)
+        return "TEST MAIL POSLAN"
+    except Exception as e:
+        return f"NAPAKA: {repr(e)}"
+
+
+
+
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, redirect, session, flash
 from flask_mail import Mail, Message
 import sqlite3
 import os
-import threading
 import traceback
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -254,7 +253,7 @@ Budi Blendz
         mail.send(user_msg)
         print("Email uporabniku uspešno poslan:", user_email)
 
-    except Exception as e:
+    except Exception:
         print("===== NAPAKA USER EMAIL =====")
         traceback.print_exc()
 
@@ -278,28 +277,11 @@ Storitev: {hairstyle}
         mail.send(admin_msg)
         print("Email adminu uspešno poslan:", ADMIN_EMAIL)
 
-    except Exception as e:
+    except Exception:
         print("===== NAPAKA ADMIN EMAIL =====")
         traceback.print_exc()
 
     return True
-
-
-def send_booking_emails_async(user_email, user_name, user_phone, term_date, term_time, hairstyle):
-    with app.app_context():
-        try:
-            print("ASYNC EMAIL THREAD START")
-            send_booking_emails(
-                user_email=user_email,
-                user_name=user_name,
-                user_phone=user_phone,
-                term_date=term_date,
-                term_time=term_time,
-                hairstyle=hairstyle
-            )
-            print("ASYNC EMAIL THREAD END")
-        except Exception as e:
-            print("Async email error:", repr(e))
 
 # ------------------ ROUTES ------------------
 @app.route("/")
@@ -446,20 +428,16 @@ def reserve(id):
     db.commit()
     db.close()
 
-    print("Rezervacija uspešna, zaganjam email thread...")
+    print("Rezervacija uspešna, pošiljam email...")
 
-    thread = threading.Thread(
-        target=send_booking_emails_async,
-        args=(
-            session["user"],
-            user_name,
-            user_phone,
-            termin["date"],
-            termin["time"],
-            hairstyle
-        )
+    send_booking_emails(
+        user_email=session["user"],
+        user_name=user_name,
+        user_phone=user_phone,
+        term_date=termin["date"],
+        term_time=termin["time"],
+        hairstyle=hairstyle
     )
-    thread.start()
 
     flash("Termin je bil uspešno rezerviran.")
     return redirect("/booking")
@@ -620,6 +598,7 @@ def contact():
 @app.route("/lokacija")
 def location():
     return render_template("lokacija.html")
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

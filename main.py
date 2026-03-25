@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, redirect, session, flash
-from flask_mail import Mail, Message
 import sqlite3
 import os
 import traceback
+import requests
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -10,24 +10,13 @@ app = Flask(__name__)
 
 # ------------------ OSNOVNE NASTAVITVE ------------------
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
-
-# ------------------ MAIL CONFIG ------------------
-app.config["MAIL_SERVER"] = "smtp.sendgrid.net"
-app.config["MAIL_PORT"] = 587
-app.config["MAIL_USE_TLS"] = True
-app.config["MAIL_USE_SSL"] = False
-app.config["MAIL_USERNAME"] = "apikey"
-app.config["MAIL_PASSWORD"] = os.environ.get("SENDGRID_API_KEY")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
-app.config["MAIL_SUPPRESS_SEND"] = False
-app.config["MAIL_TIMEOUT"] = 10
 
-mail = Mail(app)
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
 
 print("=== ZAGON APLIKACIJE ===")
-print("MAIL_USERNAME:", app.config["MAIL_USERNAME"])
-print("MAIL_PASSWORD exists:", bool(app.config["MAIL_PASSWORD"]))
+print("SENDGRID_API_KEY exists:", bool(SENDGRID_API_KEY))
 print("MAIL_DEFAULT_SENDER:", app.config["MAIL_DEFAULT_SENDER"])
 print("ADMIN_EMAIL:", ADMIN_EMAIL)
 
@@ -207,10 +196,8 @@ def ustvari_dneve(zacetek_dneva, stevilo_dni):
 def mail_settings_ready():
     missing = []
 
-    if not app.config["MAIL_USERNAME"]:
-        missing.append("MAIL_USERNAME")
-    if not app.config["MAIL_PASSWORD"]:
-        missing.append("MAIL_PASSWORD")
+    if not SENDGRID_API_KEY:
+        missing.append("SENDGRID_API_KEY")
     if not app.config["MAIL_DEFAULT_SENDER"]:
         missing.append("MAIL_DEFAULT_SENDER")
     if not ADMIN_EMAIL:
@@ -223,6 +210,41 @@ def mail_settings_ready():
     return True
 
 
+def send_sendgrid_email(to_email, subject, body):
+    url = "https://api.sendgrid.com/v3/mail/send"
+
+    headers = {
+        "Authorization": f"Bearer {SENDGRID_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "personalizations": [
+            {
+                "to": [{"email": to_email}]
+            }
+        ],
+        "from": {
+            "email": app.config["MAIL_DEFAULT_SENDER"]
+        },
+        "subject": subject,
+        "content": [
+            {
+                "type": "text/plain",
+                "value": body
+            }
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=payload, timeout=15)
+
+    print("SendGrid status:", response.status_code)
+    if response.text:
+        print("SendGrid response:", response.text)
+
+    response.raise_for_status()
+
+
 def send_booking_emails(user_email, user_name, user_phone, term_date, term_time, hairstyle):
     print("FUNKCIJA ZA EMAIL SE JE ZAGNALA")
 
@@ -233,10 +255,7 @@ def send_booking_emails(user_email, user_name, user_phone, term_date, term_time,
     try:
         print("Pošiljam email uporabniku:", user_email)
 
-        user_msg = Message(
-            subject="Potrditev rezervacije - Budi Blendz",
-            recipients=[user_email],
-            body=f"""Pozdravljen {user_name},
+        user_body = f"""Pozdravljen {user_name},
 
 tvoj termin je uspešno rezerviran.
 
@@ -248,9 +267,12 @@ Telefon: {user_phone}
 Hvala za rezervacijo.
 Budi Blendz
 """
-        )
 
-        mail.send(user_msg)
+        send_sendgrid_email(
+            to_email=user_email,
+            subject="Potrditev rezervacije - Budi Blendz",
+            body=user_body
+        )
         print("Email uporabniku uspešno poslan:", user_email)
 
     except Exception:
@@ -260,10 +282,7 @@ Budi Blendz
     try:
         print("Pošiljam email adminu:", ADMIN_EMAIL)
 
-        admin_msg = Message(
-            subject="Nova rezervacija termina - Budi Blendz",
-            recipients=[ADMIN_EMAIL],
-            body=f"""Nova rezervacija termina
+        admin_body = f"""Nova rezervacija termina
 
 Ime: {user_name}
 Email: {user_email}
@@ -272,9 +291,12 @@ Datum: {term_date}
 Ura: {term_time}
 Storitev: {hairstyle}
 """
-        )
 
-        mail.send(admin_msg)
+        send_sendgrid_email(
+            to_email=ADMIN_EMAIL,
+            subject="Nova rezervacija termina - Budi Blendz",
+            body=admin_body
+        )
         print("Email adminu uspešno poslan:", ADMIN_EMAIL)
 
     except Exception:
@@ -430,14 +452,18 @@ def reserve(id):
 
     print("Rezervacija uspešna, pošiljam email...")
 
-    send_booking_emails(
-        user_email=session["user"],
-        user_name=user_name,
-        user_phone=user_phone,
-        term_date=termin["date"],
-        term_time=termin["time"],
-        hairstyle=hairstyle
-    )
+    try:
+        send_booking_emails(
+            user_email=session["user"],
+            user_name=user_name,
+            user_phone=user_phone,
+            term_date=termin["date"],
+            term_time=termin["time"],
+            hairstyle=hairstyle
+        )
+    except Exception:
+        print("===== NAPAKA V RESERVE EMAIL DELU =====")
+        traceback.print_exc()
 
     flash("Termin je bil uspešno rezerviran.")
     return redirect("/booking")

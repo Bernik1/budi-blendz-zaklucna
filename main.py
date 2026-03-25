@@ -26,6 +26,12 @@ app.config["MAIL_MAX_EMAILS"] = 5
 mail = Mail(app)
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
 
+print("=== ZAGON APLIKACIJE ===")
+print("MAIL_USERNAME:", app.config["MAIL_USERNAME"])
+print("MAIL_PASSWORD exists:", bool(app.config["MAIL_PASSWORD"]))
+print("MAIL_DEFAULT_SENDER:", app.config["MAIL_DEFAULT_SENDER"])
+print("ADMIN_EMAIL:", ADMIN_EMAIL)
+
 # ------------------ DNEVI ------------------
 DNEVI = {
     0: "Ponedeljek",
@@ -218,37 +224,20 @@ def mail_settings_ready():
     return True
 
 
-def attach_logo_if_exists(msg):
-    logo_path = os.path.join(app.root_path, "static", "images", "logo.jpg")
-
-    if os.path.exists(logo_path):
-        with open(logo_path, "rb") as logo_file:
-            msg.attach(
-                filename="logo.jpg",
-                content_type="image/jpeg",
-                data=logo_file.read(),
-                disposition="inline",
-                headers=[["Content-ID", "<logo_image>"]]
-            )
-        return True
-
-    return False
-
-
 def send_booking_emails(user_email, user_name, user_phone, term_date, term_time, hairstyle):
+    print("FUNKCIJA ZA EMAIL SE JE ZAGNALA")
+
     if not mail_settings_ready():
         print("Email ni bil poslan, ker nastavitve niso popolne.")
         return False
 
-    logo_exists = os.path.exists(os.path.join(app.root_path, "static", "images", "logo.jpg"))
-
     try:
+        print("Pošiljam email uporabniku:", user_email)
+
         user_msg = Message(
             subject="Potrditev rezervacije - Budi Blendz",
-            recipients=[user_email]
-        )
-
-        user_msg.body = f"""Pozdravljen {user_name},
+            recipients=[user_email],
+            body=f"""Pozdravljen {user_name},
 
 tvoj termin je uspešno rezerviran.
 
@@ -260,65 +249,21 @@ Telefon: {user_phone}
 Hvala za rezervacijo.
 Budi Blendz
 """
-
-        logo_html_user = """
-            <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:180px;width:100%;height:auto;margin:0 auto 14px auto;display:block;">
-        """ if logo_exists else ""
-
-        user_msg.html = f"""
-        <div style="margin:0;padding:40px 20px;background:#f5f5f5;font-family:Arial,sans-serif;">
-            <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.10);">
-                <div style="background:#111111;padding:38px 30px;text-align:center;">
-                    {logo_html_user}
-                    <div style="font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c9a227;margin-bottom:12px;">
-                        Premium Barber Experience
-                    </div>
-                    <h1 style="margin:0;font-size:34px;color:#ffffff;font-weight:800;">
-                        Budi Blendz
-                    </h1>
-                    <p style="margin:12px 0 0 0;color:#d4d4d4;font-size:15px;">
-                        Potrditev uspešne rezervacije
-                    </p>
-                </div>
-
-                <div style="padding:36px 32px;">
-                    <p style="margin-top:0;font-size:17px;color:#111111;">
-                        Pozdravljen <strong>{user_name}</strong>,
-                    </p>
-
-                    <p style="font-size:15px;line-height:1.7;color:#555555;">
-                        tvoj termin je uspešno rezerviran. Spodaj so vse podrobnosti rezervacije.
-                    </p>
-
-                    <div style="margin:28px 0;padding:24px;background:#fcfaf3;border:1px solid #ead38c;border-radius:18px;">
-                        <table style="width:100%;border-collapse:collapse;">
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Datum</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_date}</td></tr>
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Ura</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_time}</td></tr>
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Storitev</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{hairstyle}</td></tr>
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Telefon</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_phone}</td></tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-
-        if logo_exists:
-            attach_logo_if_exists(user_msg)
-
-        mail.send(user_msg)
-        print(f"Email uporabniku uspešno poslan: {user_email}")
-
-    except Exception as e:
-        print("Napaka pri pošiljanju user emaila:", e)
-
-    try:
-        admin_msg = Message(
-            subject="Nova rezervacija termina - Budi Blendz",
-            recipients=[ADMIN_EMAIL]
         )
 
-        admin_msg.body = f"""Nova rezervacija termina
+        mail.send(user_msg)
+        print("Email uporabniku uspešno poslan:", user_email)
+
+    except Exception as e:
+        print("Napaka pri pošiljanju user emaila:", repr(e))
+
+    try:
+        print("Pošiljam email adminu:", ADMIN_EMAIL)
+
+        admin_msg = Message(
+            subject="Nova rezervacija termina - Budi Blendz",
+            recipients=[ADMIN_EMAIL],
+            body=f"""Nova rezervacija termina
 
 Ime: {user_name}
 Email: {user_email}
@@ -327,48 +272,13 @@ Datum: {term_date}
 Ura: {term_time}
 Storitev: {hairstyle}
 """
-
-        logo_html_admin = """
-            <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:170px;width:100%;height:auto;margin:0 auto 14px auto;display:block;background:#ffffff;padding:10px;border-radius:14px;">
-        """ if logo_exists else ""
-
-        admin_msg.html = f"""
-        <div style="margin:0;padding:40px 20px;background:#f5f5f5;font-family:Arial,sans-serif;">
-            <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.10);">
-                <div style="background:linear-gradient(135deg, #111111, #1f1f1f);padding:38px 30px;text-align:center;">
-                    {logo_html_admin}
-                    <div style="font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c9a227;margin-bottom:12px;">
-                        Admin Notification
-                    </div>
-                    <h1 style="margin:0;font-size:32px;color:#ffffff;font-weight:800;">
-                        Nova rezervacija
-                    </h1>
-                </div>
-
-                <div style="padding:36px 32px;">
-                    <div style="margin:28px 0;padding:24px;background:#fcfaf3;border:1px solid #ead38c;border-radius:18px;">
-                        <table style="width:100%;border-collapse:collapse;">
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Ime</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_name}</td></tr>
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Email</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_email}</td></tr>
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Telefon</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{user_phone}</td></tr>
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Datum</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_date}</td></tr>
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Ura</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{term_time}</td></tr>
-                            <tr><td style="padding:10px 0;font-size:15px;color:#777777;">Storitev</td><td style="padding:10px 0;font-size:15px;color:#111111;font-weight:bold;text-align:right;">{hairstyle}</td></tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-
-        if logo_exists:
-            attach_logo_if_exists(admin_msg)
+        )
 
         mail.send(admin_msg)
-        print(f"Email adminu uspešno poslan: {ADMIN_EMAIL}")
+        print("Email adminu uspešno poslan:", ADMIN_EMAIL)
 
     except Exception as e:
-        print("Napaka pri pošiljanju admin emaila:", e)
+        print("Napaka pri pošiljanju admin emaila:", repr(e))
 
     return True
 
@@ -376,6 +286,7 @@ Storitev: {hairstyle}
 def send_booking_emails_async(user_email, user_name, user_phone, term_date, term_time, hairstyle):
     with app.app_context():
         try:
+            print("ASYNC EMAIL THREAD START")
             send_booking_emails(
                 user_email=user_email,
                 user_name=user_name,
@@ -384,8 +295,9 @@ def send_booking_emails_async(user_email, user_name, user_phone, term_date, term
                 term_time=term_time,
                 hairstyle=hairstyle
             )
+            print("ASYNC EMAIL THREAD END")
         except Exception as e:
-            print("Async email error:", e)
+            print("Async email error:", repr(e))
 
 # ------------------ ROUTES ------------------
 @app.route("/")
@@ -532,7 +444,9 @@ def reserve(id):
     db.commit()
     db.close()
 
-    threading.Thread(
+    print("Rezervacija uspešna, zaganjam email thread...")
+
+    thread = threading.Thread(
         target=send_booking_emails_async,
         args=(
             session["user"],
@@ -541,9 +455,9 @@ def reserve(id):
             termin["date"],
             termin["time"],
             hairstyle
-        ),
-        daemon=True
-    ).start()
+        )
+    )
+    thread.start()
 
     flash("Termin je bil uspešno rezerviran.")
     return redirect("/booking")

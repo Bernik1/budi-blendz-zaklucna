@@ -1,36 +1,36 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
 <section class="section">
     <h2>Shop</h2>
+
     <div class="grid">
+
         <div class="card product">
-            <h3>Hair Powder</h3>
-            <p>Volumen in tekstura</p>
-            <span class="price">12€</span>
-            <button class="btn">Dodaj</button>
+            <img src="{% static 'images/ELEVEN.jpg' %}" alt="KEEP MY CURL DEFINING CREAM">
+            <h3>KEEP MY CURL DEFINING CREAM</h3>
+            <span class="price">20€</span>
         </div>
 
         <div class="card product">
-            <h3>Matte Clay</h3>
-            <p>Močan oprijem</p>
-            <span class="price">14€</span>
-            <button class="btn">Dodaj</button>
+            <img src="{% static 'images/ELEVEN1.jpg' %}" alt="Extra Hold Styling Clay">
+            <h3>Extra Hold Styling Clay</h3>
+            <span class="price">20€</span>
         </div>
 
         <div class="card product">
-            <h3>Hair Gel</h3>
-            <p>Dolgotrajen stil</p>
-            <span class="price">10€</span>
-            <button class="btn">Dodaj</button>
+            <img src="{% static 'images/ELEVEN2.jpg' %}" alt="I Want Body Texture Spray">
+            <h3>I Want Body Texture Spray</h3>
+            <span class="price">20€</span>
         </div>
 
         <div class="card product">
-            <h3>Beard Oil</h3>
-            <p>Nega brade</p>
-            <span class="price">11€</span>
-            <button class="btn">Dodaj</button>
+            <img src="{% static 'images/ELEVEN3.jpg' %}" alt="Slick Hold Styling Pomade">
+            <h3>Slick Hold Styling Pomade</h3>
+            <span class="price">20€</span>
         </div>
+
     </div>
 </section>
 {% endblock %}

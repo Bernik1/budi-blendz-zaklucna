@@ -916,3 +916,21 @@ textarea:focus {
 .location-actions {
     text-align: center;
 }
+.product img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 10px;
+    margin-bottom: 10px;
+
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* HOVER efekt */
+.product:hover img {
+    transform: scale(1.05);
+}
+
+.product:hover {
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}

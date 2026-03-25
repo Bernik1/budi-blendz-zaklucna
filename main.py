@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, session, flash
 from flask_mail import Mail, Message
 import sqlite3
 import os
+import threading
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -19,6 +20,8 @@ app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
 app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
 app.config["MAIL_SUPPRESS_SEND"] = False
+app.config["MAIL_TIMEOUT"] = 10
+app.config["MAIL_MAX_EMAILS"] = 5
 
 mail = Mail(app)
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
@@ -235,11 +238,11 @@ def attach_logo_if_exists(msg):
 def send_booking_emails(user_email, user_name, user_phone, term_date, term_time, hairstyle):
     if not mail_settings_ready():
         print("Email ni bil poslan, ker nastavitve niso popolne.")
-        return
+        return False
+
+    logo_exists = os.path.exists(os.path.join(app.root_path, "static", "images", "logo.jpg"))
 
     try:
-        logo_exists = os.path.exists(os.path.join(app.root_path, "static", "images", "logo.jpg"))
-
         user_msg = Message(
             subject="Potrditev rezervacije - Budi Blendz",
             recipients=[user_email]
@@ -304,8 +307,12 @@ Budi Blendz
             attach_logo_if_exists(user_msg)
 
         mail.send(user_msg)
-        print(f"Uporabniku je bil email uspešno poslan na: {user_email}")
+        print(f"Email uporabniku uspešno poslan: {user_email}")
 
+    except Exception as e:
+        print("Napaka pri pošiljanju user emaila:", e)
+
+    try:
         admin_msg = Message(
             subject="Nova rezervacija termina - Budi Blendz",
             recipients=[ADMIN_EMAIL]
@@ -358,10 +365,27 @@ Storitev: {hairstyle}
             attach_logo_if_exists(admin_msg)
 
         mail.send(admin_msg)
-        print(f"Adminu je bil email uspešno poslan na: {ADMIN_EMAIL}")
+        print(f"Email adminu uspešno poslan: {ADMIN_EMAIL}")
 
     except Exception as e:
-        print("Napaka pri pošiljanju emaila:", e)
+        print("Napaka pri pošiljanju admin emaila:", e)
+
+    return True
+
+
+def send_booking_emails_async(user_email, user_name, user_phone, term_date, term_time, hairstyle):
+    with app.app_context():
+        try:
+            send_booking_emails(
+                user_email=user_email,
+                user_name=user_name,
+                user_phone=user_phone,
+                term_date=term_date,
+                term_time=term_time,
+                hairstyle=hairstyle
+            )
+        except Exception as e:
+            print("Async email error:", e)
 
 # ------------------ ROUTES ------------------
 @app.route("/")
@@ -508,14 +532,18 @@ def reserve(id):
     db.commit()
     db.close()
 
-    send_booking_emails(
-        user_email=session["user"],
-        user_name=user_name,
-        user_phone=user_phone,
-        term_date=termin["date"],
-        term_time=termin["time"],
-        hairstyle=hairstyle
-    )
+    threading.Thread(
+        target=send_booking_emails_async,
+        args=(
+            session["user"],
+            user_name,
+            user_phone,
+            termin["date"],
+            termin["time"],
+            hairstyle
+        ),
+        daemon=True
+    ).start()
 
     flash("Termin je bil uspešno rezerviran.")
     return redirect("/booking")

@@ -12,16 +12,15 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
 
 # ------------------ MAIL CONFIG ------------------
-app.config["MAIL_SERVER"] = "smtp.gmail.com"
+app.config["MAIL_SERVER"] = "smtp.sendgrid.net"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
 app.config["MAIL_USE_SSL"] = False
-app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
-app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
+app.config["MAIL_USERNAME"] = "apikey"
+app.config["MAIL_PASSWORD"] = os.environ.get("SENDGRID_API_KEY")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
 app.config["MAIL_SUPPRESS_SEND"] = False
 app.config["MAIL_TIMEOUT"] = 10
-app.config["MAIL_MAX_EMAILS"] = 5
 
 mail = Mail(app)
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
@@ -618,27 +617,6 @@ def contact():
 @app.route("/lokacija")
 def location():
     return render_template("lokacija.html")
-
-
-
-
-@app.route("/test-mail")
-def test_mail():
-    try:
-        msg = Message(
-            subject="Test email",
-            recipients=["zak.bernik07@gmail.com"],
-            body="To je testni email iz Renderja."
-        )
-        mail.send(msg)
-        return "TEST MAIL POSLAN"
-    except Exception as e:
-        return f"NAPAKA: {repr(e)}"
-
-
-
-
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

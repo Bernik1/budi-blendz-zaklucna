@@ -7,16 +7,18 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 
-# skrivnosti beri iz environment variables
+# ------------------ OSNOVNE NASTAVITVE ------------------
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
 
 # ------------------ MAIL CONFIG ------------------
 app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
+app.config["MAIL_USE_SSL"] = False
 app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
 app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
+app.config["MAIL_SUPPRESS_SEND"] = False
 
 mail = Mail(app)
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL")
@@ -81,11 +83,14 @@ def migrate_db():
     db = get_db()
     cursor = db.cursor()
 
-    try:
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [col["name"] for col in cursor.fetchall()]
+
+    if "phone" not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN phone TEXT")
         db.commit()
         print("Phone stolpec dodan.")
-    except sqlite3.OperationalError:
+    else:
         print("Phone stolpec že obstaja.")
 
     db.close()
@@ -191,6 +196,25 @@ def ustvari_dneve(zacetek_dneva, stevilo_dni):
     db.close()
 
 # ------------------ EMAIL HELPERS ------------------
+def mail_settings_ready():
+    missing = []
+
+    if not app.config["MAIL_USERNAME"]:
+        missing.append("MAIL_USERNAME")
+    if not app.config["MAIL_PASSWORD"]:
+        missing.append("MAIL_PASSWORD")
+    if not app.config["MAIL_DEFAULT_SENDER"]:
+        missing.append("MAIL_DEFAULT_SENDER")
+    if not ADMIN_EMAIL:
+        missing.append("ADMIN_EMAIL")
+
+    if missing:
+        print("Manjkajoče mail nastavitve:", ", ".join(missing))
+        return False
+
+    return True
+
+
 def attach_logo_if_exists(msg):
     logo_path = os.path.join(app.root_path, "static", "images", "logo.jpg")
 
@@ -201,17 +225,21 @@ def attach_logo_if_exists(msg):
                 content_type="image/jpeg",
                 data=logo_file.read(),
                 disposition="inline",
-                headers={"Content-ID": "<logo_image>"}
+                headers=[["Content-ID", "<logo_image>"]]
             )
+        return True
+
+    return False
 
 
 def send_booking_emails(user_email, user_name, user_phone, term_date, term_time, hairstyle):
-    # če env spremenljivke niso nastavljene, email samo preskoči
-    if not app.config["MAIL_USERNAME"] or not app.config["MAIL_PASSWORD"] or not ADMIN_EMAIL:
-        print("Mail nastavitve niso nastavljene.")
+    if not mail_settings_ready():
+        print("Email ni bil poslan, ker nastavitve niso popolne.")
         return
 
     try:
+        logo_exists = os.path.exists(os.path.join(app.root_path, "static", "images", "logo.jpg"))
+
         user_msg = Message(
             subject="Potrditev rezervacije - Budi Blendz",
             recipients=[user_email]
@@ -230,11 +258,15 @@ Hvala za rezervacijo.
 Budi Blendz
 """
 
+        logo_html_user = """
+            <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:180px;width:100%;height:auto;margin:0 auto 14px auto;display:block;">
+        """ if logo_exists else ""
+
         user_msg.html = f"""
         <div style="margin:0;padding:40px 20px;background:#f5f5f5;font-family:Arial,sans-serif;">
             <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.10);">
                 <div style="background:#111111;padding:38px 30px;text-align:center;">
-                    <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:180px;width:100%;height:auto;margin:0 auto 14px auto;display:block;">
+                    {logo_html_user}
                     <div style="font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c9a227;margin-bottom:12px;">
                         Premium Barber Experience
                     </div>
@@ -268,8 +300,11 @@ Budi Blendz
         </div>
         """
 
-        attach_logo_if_exists(user_msg)
+        if logo_exists:
+            attach_logo_if_exists(user_msg)
+
         mail.send(user_msg)
+        print(f"Uporabniku je bil email uspešno poslan na: {user_email}")
 
         admin_msg = Message(
             subject="Nova rezervacija termina - Budi Blendz",
@@ -286,11 +321,15 @@ Ura: {term_time}
 Storitev: {hairstyle}
 """
 
+        logo_html_admin = """
+            <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:170px;width:100%;height:auto;margin:0 auto 14px auto;display:block;background:#ffffff;padding:10px;border-radius:14px;">
+        """ if logo_exists else ""
+
         admin_msg.html = f"""
         <div style="margin:0;padding:40px 20px;background:#f5f5f5;font-family:Arial,sans-serif;">
             <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.10);">
                 <div style="background:linear-gradient(135deg, #111111, #1f1f1f);padding:38px 30px;text-align:center;">
-                    <img src="cid:logo_image" alt="Budi Blendz logo" style="max-width:170px;width:100%;height:auto;margin:0 auto 14px auto;display:block;background:#ffffff;padding:10px;border-radius:14px;">
+                    {logo_html_admin}
                     <div style="font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#c9a227;margin-bottom:12px;">
                         Admin Notification
                     </div>
@@ -315,8 +354,11 @@ Storitev: {hairstyle}
         </div>
         """
 
-        attach_logo_if_exists(admin_msg)
+        if logo_exists:
+            attach_logo_if_exists(admin_msg)
+
         mail.send(admin_msg)
+        print(f"Adminu je bil email uspešno poslan na: {ADMIN_EMAIL}")
 
     except Exception as e:
         print("Napaka pri pošiljanju emaila:", e)
@@ -330,10 +372,10 @@ def index():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        name = request.form["name"].strip()
-        email = request.form["email"].strip().lower()
-        phone = request.form["phone"].strip()
-        password = request.form["password"].strip()
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "").strip()
 
         if not name or not email or not phone or not password:
             flash("Vsa polja so obvezna.")
@@ -373,8 +415,8 @@ def register():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form["email"].strip().lower()
-        password = request.form["password"].strip()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "").strip()
 
         db = get_db()
         cursor = db.cursor()
@@ -424,7 +466,7 @@ def reserve(id):
         flash("Za rezervacijo se moraš prijaviti.")
         return redirect("/login")
 
-    hairstyle = request.form["hairstyle"].strip()
+    hairstyle = request.form.get("hairstyle", "").strip()
 
     if not hairstyle:
         flash("Izberi ali vpiši vrsto frizure.")
@@ -456,7 +498,12 @@ def reserve(id):
         UPDATE terms
         SET status='reserved', hairstyle=?, user_email=?
         WHERE id=? AND status='free'
-    """, (hairstyle, f"{session['user']} | {user_phone}", id))
+    """, (hairstyle, session["user"], id))
+
+    if cursor.rowcount == 0:
+        db.close()
+        flash("Ta termin je bil medtem že rezerviran.")
+        return redirect("/booking")
 
     db.commit()
     db.close()
@@ -494,8 +541,8 @@ def add_term():
     if session.get("role") != "admin":
         return "Ni dovoljeno"
 
-    date = request.form["date"].strip()
-    time = request.form["time"].strip()
+    date = request.form.get("date", "").strip()
+    time = request.form.get("time", "").strip()
 
     if not date or not time:
         flash("Datum in ura sta obvezna.")
@@ -529,7 +576,12 @@ def dodaj_teden():
     if "user" not in session or session["role"] != "admin":
         return "Dostop zavrnjen"
 
-    monday_date = request.form["monday_date"]
+    monday_date = request.form.get("monday_date", "").strip()
+
+    if not monday_date:
+        flash("Datum ponedeljka manjka.")
+        return redirect("/admin")
+
     zacetek_tedna = datetime.strptime(monday_date, "%Y-%m-%d")
 
     ustvari_dneve(zacetek_tedna, 7)
